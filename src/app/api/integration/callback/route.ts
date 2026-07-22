@@ -6,8 +6,9 @@ const ML_API_URL = 'https://api.mercadolibre.com';
 const ML_TOKEN_URL = 'https://api.mercadolibre.com/oauth/token';
 
 export async function GET(request: NextRequest) {
+  const origin = request.nextUrl.origin;
   const errorRedirect = (msg: string) =>
-    NextResponse.redirect(`http://localhost:3000/dashboard/integration?error=${encodeURIComponent(msg)}`);
+    NextResponse.redirect(`${origin}/dashboard/integration?error=${encodeURIComponent(msg)}`);
 
   try {
     const { searchParams } = new URL(request.url);
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.redirect('http://localhost:3000/dashboard/integration?success=true');
+    return NextResponse.redirect(`${origin}/dashboard/integration?success=true`);
   } catch (err: any) {
     console.error('ML callback error:', err);
     return errorRedirect(err.message || 'Erro ao processar callback');

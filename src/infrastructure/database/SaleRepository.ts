@@ -142,29 +142,29 @@ export class SaleRepository {
       }),
       prisma.$queryRawUnsafe(`
         SELECT
-          strftime('%Y-%m-%d', s.createdAt) as date,
-          SUM(s.salePrice) as revenue,
-          SUM(s.salePrice - (p.purchasePrice * 1.0) - s.mlCommission - s.fixedFee - s.variableFee - s.couponDiscount - s.shippingPaid - s.tax) as profit,
+          to_char(s."createdAt", 'YYYY-MM-DD') as date,
+          SUM(s."salePrice") as revenue,
+          SUM(s."salePrice" - (p."purchasePrice" * 1.0) - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax") as profit,
           COUNT(*) as count
-        FROM Sale s
-        JOIN Product p ON s.productId = p.id
-        WHERE s.createdAt >= datetime('now', '-30 days') AND s.status = 'PAID'
-        GROUP BY strftime('%Y-%m-%d', s.createdAt)
+        FROM "Sale" s
+        JOIN "Product" p ON s."productId" = p.id
+        WHERE s."createdAt" >= NOW() - INTERVAL '30 days' AND s."status" = 'PAID'
+        GROUP BY to_char(s."createdAt", 'YYYY-MM-DD')
         ORDER BY date ASC
       `),
       prisma.$queryRawUnsafe(`
         SELECT
           p.name,
-          SUM(s.salePrice - (p.purchasePrice * 1.0) - s.mlCommission - s.fixedFee - s.variableFee - s.couponDiscount - s.shippingPaid - s.tax) as totalProfit,
-          COUNT(*) as totalSales,
-          CASE WHEN SUM(s.salePrice) > 0
-            THEN (SUM(s.salePrice - (p.purchasePrice * 1.0) - s.mlCommission - s.fixedFee - s.variableFee - s.couponDiscount - s.shippingPaid - s.tax)) * 100.0 / SUM(s.salePrice)
-            ELSE 0 END as avgMargin
-        FROM Sale s
-        JOIN Product p ON s.productId = p.id
-        WHERE s.status = 'PAID'
-        GROUP BY s.productId
-        ORDER BY totalProfit DESC
+          SUM(s."salePrice" - (p."purchasePrice" * 1.0) - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax") as "totalProfit",
+          COUNT(*) as "totalSales",
+          CASE WHEN SUM(s."salePrice") > 0
+            THEN (SUM(s."salePrice" - (p."purchasePrice" * 1.0) - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax")) * 100.0 / SUM(s."salePrice")
+            ELSE 0 END as "avgMargin"
+        FROM "Sale" s
+        JOIN "Product" p ON s."productId" = p.id
+        WHERE s."status" = 'PAID'
+        GROUP BY s."productId", p.name
+        ORDER BY "totalProfit" DESC
         LIMIT 10
       `),
       prisma.sale.groupBy({
