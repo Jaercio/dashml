@@ -190,9 +190,9 @@ export class SaleRepository {
     const avgMargin = totalSales > 0 ? (totalContributionMargin / totalRevenue) * 100 : 0;
     const avgROI = totalCosts > 0 ? (totalNetProfit / totalCosts) * 100 : 0;
     const avgTicket = totalSales > 0 ? totalRevenue / totalSales : 0;
-    const totalPaid = sales.filter((s) => s.status === 'PAID').length;
-    const totalPending = sales.filter((s) => s.status === 'PENDING').length;
-    const totalCancelled = sales.filter((s) => s.status === 'CANCELLED').length;
+    const totalPaid = sales.filter((s: any) => s.status === 'PAID').length;
+    const totalPending = sales.filter((s: any) => s.status === 'PENDING').length;
+    const totalCancelled = sales.filter((s: any) => s.status === 'CANCELLED').length;
 
     return {
       totalSales,
