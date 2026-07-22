@@ -48,8 +48,8 @@ export class StockRepository {
 
     if (filters?.startDate || filters?.endDate) {
       where.createdAt = {};
-      if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
-      if (filters.endDate) where.createdAt.lte = new Date(filters.endDate + 'T23:59:59');
+      if (filters.startDate) where.createdAt.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
+      if (filters.endDate) where.createdAt.lte = new Date(`${filters.endDate}T23:59:59.999Z`);
     }
 
     return where;

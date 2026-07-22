@@ -66,12 +66,10 @@ export class SaleRepository {
     if (filters?.startDate || filters?.endDate) {
       where.createdAt = {};
       if (filters.startDate) {
-        const [y, m, d] = filters.startDate.split('-').map(Number);
-        where.createdAt.gte = new Date(y, m - 1, d, 0, 0, 0);
+        where.createdAt.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
       }
       if (filters.endDate) {
-        const [y, m, d] = filters.endDate.split('-').map(Number);
-        where.createdAt.lte = new Date(y, m - 1, d, 23, 59, 59);
+        where.createdAt.lte = new Date(`${filters.endDate}T23:59:59.999Z`);
       }
     }
 
