@@ -37,8 +37,14 @@ export default function ReportsPage() {
 
     try {
       const params = new URLSearchParams();
-      if (dateStart) params.set('startDate', dateStart);
-      if (dateEnd) params.set('endDate', dateEnd);
+      if (dateStart) {
+        const start = new Date(dateStart + 'T00:00:00');
+        params.set('startDate', start.toISOString());
+      }
+      if (dateEnd) {
+        const end = new Date(dateEnd + 'T23:59:59');
+        params.set('endDate', end.toISOString());
+      }
 
       let endpoint = '';
       switch (selectedReport) {

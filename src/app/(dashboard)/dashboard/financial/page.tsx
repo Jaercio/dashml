@@ -82,8 +82,14 @@ export default function FinancialPage() {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (typeFilter) params.set('type', typeFilter);
-      if (dateStart) params.set('startDate', dateStart);
-      if (dateEnd) params.set('endDate', dateEnd);
+      if (dateStart) {
+        const start = new Date(dateStart + 'T00:00:00');
+        params.set('startDate', start.toISOString());
+      }
+      if (dateEnd) {
+        const end = new Date(dateEnd + 'T23:59:59');
+        params.set('endDate', end.toISOString());
+      }
 
       const res = await fetch(`/api/financial?${params.toString()}`);
       const data = await res.json();
