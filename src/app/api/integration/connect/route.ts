@@ -10,8 +10,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Usuário não identificado.' }, { status: 400 });
     }
 
-    const clientIdRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_ID' } });
-    if (!clientIdRow) {
+    const clientIdParam = request.nextUrl.searchParams.get('clientId');
+    const clientSecretParam = request.nextUrl.searchParams.get('clientSecret');
+
+    if (clientIdParam && clientSecretParam) {
+      await prisma.systemSetting.upsert({
+        where: { key: 'ML_CLIENT_ID' },
+        update: { value: clientIdParam },
+        create: { key: 'ML_CLIENT_ID', value: clientIdParam },
+      });
+      await prisma.systemSetting.upsert({
+        where: { key: 'ML_CLIENT_SECRET' },
+        update: { value: clientSecretParam },
+        create: { key: 'ML_CLIENT_SECRET', value: clientSecretParam },
+      });
+    }
+
+    let clientId = clientIdParam || '';
+    let clientSecret = clientSecretParam || '';
+
+    if (!clientId || !clientSecret) {
+      const clientIdRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_ID' } });
+      const clientSecretRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_SECRET' } });
+      clientId = clientId || clientIdRow?.value || '';
+      clientSecret = clientSecret || clientSecretRow?.value || '';
+    }
+
+    if (!clientId) {
       return NextResponse.json({ success: false, message: 'Credenciais do ML não configuradas.' }, { status: 400 });
     }
 
@@ -19,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     const params = new URLSearchParams({
       response_type: 'code',
-      client_id: clientIdRow.value,
+      client_id: clientId,
       redirect_uri: redirectUri,
       state: userId,
     });

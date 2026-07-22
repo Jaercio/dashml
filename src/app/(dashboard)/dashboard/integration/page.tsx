@@ -179,36 +179,25 @@ export default function IntegrationPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/integration/save-credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: clientIdInput.trim(),
-          clientSecret: clientSecretInput.trim(),
-        }),
-      });
+      if (!userId) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
 
+      const connectUrl = `/api/integration/connect?userId=${userId}&clientId=${encodeURIComponent(clientIdInput.trim())}&clientSecret=${encodeURIComponent(clientSecretInput.trim())}`;
+      const response = await fetch(connectUrl);
       const text = await response.text();
-      console.log('[ML] POST /api/integration/credentials status:', response.status, 'body:', text.substring(0, 500));
+      console.log('[ML] /api/integration/connect status:', response.status, 'body:', text.substring(0, 300));
 
       let data;
       try {
         data = JSON.parse(text);
       } catch {
-        console.error('[ML] Resposta não-JSON:', text.substring(0, 500));
+        console.error('[ML] /api/integration/connect retornou HTML:', text.substring(0, 500));
         throw new Error('Servidor retornou erro. Verifique o console.');
       }
 
-      if (data.success) {
-        setSuccess('Credenciais salvas com sucesso!');
-        setShowSetup(false);
-        setCredentials({
-          configured: true,
-          clientId: clientIdInput.trim(),
-          hasClientSecret: true,
-        });
-        setClientIdInput('');
-        setClientSecretInput('');
+      if (data.success && data.url) {
+        window.location.href = data.url;
       } else {
         setError(data.message || 'Erro ao salvar credenciais');
       }
