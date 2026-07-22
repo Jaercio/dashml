@@ -22,12 +22,14 @@ export async function GET(request: NextRequest) {
 
     const userId = state;
 
-    const clientIdRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_ID' } });
-    const clientSecretRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_SECRET' } });
-    if (!clientIdRow || !clientSecretRow) return errorRedirect('Credenciais do ML não configuradas');
+    const clientIdRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_ID' } }).catch(() => null);
+    const clientSecretRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_SECRET' } }).catch(() => null);
 
-    const clientId = clientIdRow.value;
-    const clientSecret = clientSecretRow.value;
+    const clientId = clientIdRow?.value || process.env.ML_CLIENT_ID || '';
+    const clientSecret = clientSecretRow?.value || process.env.ML_CLIENT_SECRET || '';
+
+    if (!clientId || !clientSecret) return errorRedirect('Credenciais do ML não configuradas');
+
     const redirectUri = process.env.ML_REDIRECT_URI || '';
 
     const tokenRes = await fetch(ML_TOKEN_URL, {

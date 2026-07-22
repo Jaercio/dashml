@@ -14,27 +14,38 @@ export async function GET(request: NextRequest) {
     const clientSecretParam = request.nextUrl.searchParams.get('clientSecret');
 
     if (clientIdParam && clientSecretParam) {
-      await prisma.systemSetting.upsert({
-        where: { key: 'ML_CLIENT_ID' },
-        update: { value: clientIdParam },
-        create: { key: 'ML_CLIENT_ID', value: clientIdParam },
-      });
-      await prisma.systemSetting.upsert({
-        where: { key: 'ML_CLIENT_SECRET' },
-        update: { value: clientSecretParam },
-        create: { key: 'ML_CLIENT_SECRET', value: clientSecretParam },
-      });
+      try {
+        await prisma.systemSetting.upsert({
+          where: { key: 'ML_CLIENT_ID' },
+          update: { value: clientIdParam },
+          create: { key: 'ML_CLIENT_ID', value: clientIdParam },
+        });
+        await prisma.systemSetting.upsert({
+          where: { key: 'ML_CLIENT_SECRET' },
+          update: { value: clientSecretParam },
+          create: { key: 'ML_CLIENT_SECRET', value: clientSecretParam },
+        });
+      } catch {
+        console.error('[ML Connect] Erro ao salvar credenciais no banco, usando env vars');
+      }
     }
 
     let clientId = clientIdParam || '';
     let clientSecret = clientSecretParam || '';
 
     if (!clientId || !clientSecret) {
-      const clientIdRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_ID' } });
-      const clientSecretRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_SECRET' } });
-      clientId = clientId || clientIdRow?.value || '';
-      clientSecret = clientSecret || clientSecretRow?.value || '';
+      try {
+        const clientIdRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_ID' } });
+        const clientSecretRow = await prisma.systemSetting.findUnique({ where: { key: 'ML_CLIENT_SECRET' } });
+        clientId = clientId || clientIdRow?.value || '';
+        clientSecret = clientSecret || clientSecretRow?.value || '';
+      } catch {
+        console.error('[ML Connect] Erro ao ler credenciais do banco, usando env vars');
+      }
     }
+
+    clientId = clientId || process.env.ML_CLIENT_ID || '';
+    clientSecret = clientSecret || process.env.ML_CLIENT_SECRET || '';
 
     if (!clientId) {
       return NextResponse.json({ success: false, message: 'Credenciais do ML não configuradas.' }, { status: 400 });
