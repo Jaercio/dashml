@@ -188,7 +188,16 @@ export default function IntegrationPage() {
         }),
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      console.log('[ML] POST /api/integration/credentials status:', response.status, 'body:', text.substring(0, 500));
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error('[ML] Resposta não-JSON:', text.substring(0, 500));
+        throw new Error('Servidor retornou erro. Verifique o console.');
+      }
 
       if (data.success) {
         setSuccess('Credenciais salvas com sucesso!');
@@ -203,8 +212,9 @@ export default function IntegrationPage() {
       } else {
         setError(data.message || 'Erro ao salvar credenciais');
       }
-    } catch (err) {
-      setError('Erro ao salvar credenciais');
+    } catch (err: any) {
+      console.error('[ML] Erro no handleSaveCredentials:', err);
+      setError(err.message || 'Erro ao salvar credenciais');
     } finally {
       setSavingCredentials(false);
     }

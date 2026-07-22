@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { clientId, clientSecret } = body;
 
+    console.log('[ML Credentials] POST recebido:', { clientId: clientId?.substring(0, 10) + '...', hasSecret: !!clientSecret });
+
     if (!clientId || !clientSecret) {
       return NextResponse.json(
         { success: false, message: 'Client ID e Client Secret são obrigatórios.' },
@@ -47,11 +49,14 @@ export async function POST(request: NextRequest) {
       create: { key: 'ML_CLIENT_SECRET', value: clientSecret },
     });
 
+    console.log('[ML Credentials] Credenciais salvas com sucesso');
+
     return NextResponse.json({
       success: true,
       message: 'Credenciais salvas com sucesso.',
     });
   } catch (error: any) {
+    console.error('[ML Credentials] Erro ao salvar:', error);
     return NextResponse.json(
       { success: false, message: error.message || 'Erro ao salvar credenciais.' },
       { status: 500 }
