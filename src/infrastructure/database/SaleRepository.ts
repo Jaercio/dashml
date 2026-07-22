@@ -178,13 +178,13 @@ export class SaleRepository {
     ]);
 
     const totalSales = sales.length;
-    const totalRevenue = sales.reduce((sum, s) => sum + s.salePrice, 0);
-    const totalCosts = sales.reduce((sum, s) => sum + (s.product?.purchasePrice || 0), 0);
-    const totalShippingPaid = sales.reduce((sum, s) => sum + (s.shippingPaid || 0), 0);
-    const totalCouponDiscount = sales.reduce((sum, s) => sum + (s.couponDiscount || 0), 0);
+    const totalRevenue = sales.reduce((sum: number, s: any) => sum + s.salePrice, 0);
+    const totalCosts = sales.reduce((sum: number, s: any) => sum + (s.product?.purchasePrice || 0), 0);
+    const totalShippingPaid = sales.reduce((sum: number, s: any) => sum + (s.shippingPaid || 0), 0);
+    const totalCouponDiscount = sales.reduce((sum: number, s: any) => sum + (s.couponDiscount || 0), 0);
     const totalContributionMargin = totalRevenue - totalCosts - totalShippingPaid - totalCouponDiscount;
-    const totalMLFees = sales.reduce((sum, s) => sum + s.mlCommission + s.fixedFee + s.variableFee, 0);
-    const totalTaxes = sales.reduce((sum, s) => sum + s.tax, 0);
+    const totalMLFees = sales.reduce((sum: number, s: any) => sum + s.mlCommission + s.fixedFee + s.variableFee, 0);
+    const totalTaxes = sales.reduce((sum: number, s: any) => sum + s.tax, 0);
     const totalGrossProfit = totalContributionMargin - totalMLFees;
     const totalNetProfit = totalGrossProfit - totalTaxes;
     const avgMargin = totalSales > 0 ? (totalContributionMargin / totalRevenue) * 100 : 0;
