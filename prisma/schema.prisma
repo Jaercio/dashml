@@ -1,0 +1,221 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. USUÁRIOS E PERMISSÕES
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         String        @default("ADMIN") // ADMIN, EMPLOYEE, FINANCE, VIEWER
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  systemLogs   SystemLog[]
+}
+
+// 2. INTEGRAÇÃO MERCADO LIVRE
+model MLIntegration {
+  id           String        @id @default(uuid())
+  userId       String
+  sellerId     String        @unique // ID do vendedor no Mercado Livre
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime      // Data/Hora de expiração do Token
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  syncedAt     DateTime?     // Última sincronização de dados bem-sucedida
+}
+
+// 3. PRODUTOS E FORNECEDORES
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  cnpj      String?   @unique
+  email     String?
+  phone     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id               String          @id @default(uuid())
+  name             String
+  sku              String          @unique
+  internalCode     String?         @unique
+  mlCode           String?         @unique // Código do Mercado Livre (se vinculado)
+  category         String?
+  supplierId       String?
+  supplier         Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  brand            String?
+  purchasePrice    Float           @default(0.0) // Custo de aquisição
+  sellingPrice     Float           @default(0.0) // Preço de venda atual
+  minPrice         Float           @default(0.0) // Preço mínimo tolerável
+  idealPrice       Float           @default(0.0) // Preço ideal calculado
+  weight           Float           @default(0.0) // kg
+  dimensions       String?         // Ex: "10x20x30 cm"
+  stock            Int             @default(0)
+  physicalLocation String?         // Localização no galpão/estoque
+  imageUrl         String?
+  barcode          String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  stockMovements   StockMovement[]
+  sales            Sale[]
+  complaints       Complaint[]
+  returns          Return[]
+}
+
+// 4. CONTROLE DE ESTOQUE
+model StockMovement {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      String   // IN (Entrada), OUT (Saída), INVENTORY (Ajuste/Inventário)
+  quantity  Int
+  reason    String?  // Ex: "Nova compra", "Venda ML-123", "Avaria", etc.
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+// 5. CLIENTES
+model Customer {
+  id            String      @id @default(uuid())
+  name          String
+  email         String?
+  phone         String?
+  city          String?
+  state         String?     // Ex: "SP", "RJ"
+  mlCustomerId  String?     @unique // ID do cliente no Mercado Livre
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  sales         Sale[]
+  complaints    Complaint[]
+  returns       Return[]
+}
+
+// 6. VENDAS E DESEMPENHO FINANCEIRO
+model Sale {
+  id               String      @id @default(uuid())
+  mlOrderId        String      @unique // ID do Pedido no Mercado Livre
+  productId        String
+  product          Product     @relation(fields: [productId], references: [id])
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  salePrice        Float       // Preço pago pelo cliente
+  shippingReceived Float       @default(0.0) // Frete pago pelo cliente (se houver)
+  shippingPaid     Float       @default(0.0) // Frete pago pelo vendedor
+  mlCommission     Float       @default(0.0) // Comissão cobrada pelo Mercado Livre (11% a 16.5%)
+  fixedFee         Float       @default(0.0) // Tarifa fixa do ML por item (ex: R$ 6.00)
+  variableFee      Float       @default(0.0) // Outras taxas variáveis (ex: publicidade)
+  couponDiscount   Float       @default(0.0) // Desconto de cupom aplicado (absorvido pelo vendedor)
+  productCost      Float       @default(0.0) // Custo de aquisição do produto no momento da venda
+  tax              Float       @default(0.0) // Imposto pago por essa venda
+  grossProfit      Float       // Lucro Bruto = Preço - Custo - Taxas ML - Frete Pago
+  netProfit        Float       // Lucro Líquido = Lucro Bruto - Impostos - Custos Embalagem/Fixo rateado
+  margin           Float       // Margem Líquida %
+  roi              Float       // ROI %
+  status           String      @default("PAID") // PAID, PENDING, CANCELLED
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  complaints       Complaint[]
+  returns          Return[]
+}
+
+// 7. RECLAMAÇÕES E DEVOLUÇÕES
+model Complaint {
+  id            String    @id @default(uuid())
+  mlComplaintId String?   @unique
+  saleId        String
+  sale          Sale      @relation(fields: [saleId], references: [id])
+  productId     String
+  product       Product   @relation(fields: [productId], references: [id])
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  type          String    // Ex: "Atraso na entrega", "Produto com defeito", etc.
+  status        String    @default("OPEN") // OPEN, RESOLVED, CLOSED
+  deadline      DateTime? // Prazo para resposta/resolução
+  reason        String?
+  lostValue     Float     @default(0.0) // Prejuízo financeiro direto da reclamação
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Return {
+  id          String   @id @default(uuid())
+  mlReturnId  String?  @unique
+  saleId      String
+  sale        Sale     @relation(fields: [saleId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  status      String   @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 8. ANÚNCIOS (LISTINGS)
+model Listing {
+  id             String   @id @default(uuid())
+  mlItemId       String   @unique // ID do anúncio no ML (ex: MLB12345678)
+  title          String
+  sku            String?
+  price          Float
+  status         String   // active, paused, closed
+  listingType    String   // gold_special (Premium), gold_pro (Clássico), etc.
+  visits         Int      @default(0)
+  sales          Int      @default(0)
+  conversionRate Float    @default(0.0) // Porcentagem de conversão
+  stock          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// 9. FINANCEIRO (DESPESAS E CUSTOS GERAIS)
+model FinancialRecord {
+  id          String   @id @default(uuid())
+  description String
+  type        String   // FIXED_COST, VARIABLE_COST, SALARY, RENT, ENERGY, INTERNET, TAX, PACKAGING, LABEL, EXTRA_SHIPPING, OTHER
+  amount      Float
+  date        DateTime
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 10. NOTIFICAÇÕES E AUDITORIA
+model Notification {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  type        String   // SALE, PAYMENT, COMPLAINT, RETURN, LOW_STOCK, PAUSED_PRODUCT, NO_STOCK, SYSTEM
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  action    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
