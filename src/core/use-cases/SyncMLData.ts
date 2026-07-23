@@ -172,8 +172,35 @@ export class SyncMLData {
             shippingPaid = await this.mlService.getShipmentCost(accessToken, order.shipping.id);
           }
 
-          // mlSaleFee = comissão % + taxa fixa do ML (juntos no campo sale_fee)
-          const mlTotalFee = metrics.mlCommission;
+          // Se sale_fee veio 0, buscar comissão detalhada do pedido
+          let mlTotalFee = metrics.mlCommission;
+          if (mlTotalFee === 0 && order.id) {
+            try {
+              const orderDetailResp = await fetch(
+                `${ML_API_URL}/orders/${order.id}`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+              );
+              if (orderDetailResp.ok) {
+                const orderDetail = await orderDetailResp.json();
+                const detailFee = orderDetail.order_items?.[0]?.sale_fee;
+                if (detailFee && detailFee > 0) {
+                  mlTotalFee = detailFee;
+                } else if (orderDetail.fee_details?.length) {
+                  mlTotalFee = orderDetail.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+                } else if (orderDetail.payments?.length) {
+                  for (const payment of orderDetail.payments) {
+                    if (payment.fee_details?.length) {
+                      mlTotalFee += payment.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+                    }
+                    if (payment.benefit_amount !== undefined && payment.benefit_amount !== null) {
+                      // benefit_amount pode representar desconto do cupom, não comissão
+                    }
+                  }
+                }
+              }
+            } catch {}
+          }
+
           const couponDiscount = metrics.couponDiscount;
           const grossProfit = metrics.salePrice - product.purchasePrice - mlTotalFee - shippingPaid - couponDiscount;
           const netProfit = grossProfit;
@@ -237,7 +264,27 @@ export class SyncMLData {
               continue;
             }
 
-            const mlFee = order.order_items?.[0]?.sale_fee || sale.mlCommission;
+            const mlFeeFromOrder = order.order_items?.[0]?.sale_fee || 0;
+            let mlFee = mlFeeFromOrder || sale.mlCommission;
+
+            // Se comissão ainda é 0, buscar detalhes do pedido
+            if (mlFee === 0) {
+              try {
+                const detailResp = await fetch(
+                  `${ML_API_URL}/orders/${sale.mlOrderId}`,
+                  { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                if (detailResp.ok) {
+                  const detail = await detailResp.json();
+                  const detailFee = detail.order_items?.[0]?.sale_fee;
+                  if (detailFee && detailFee > 0) {
+                    mlFee = detailFee;
+                  } else if (detail.fee_details?.length) {
+                    mlFee = detail.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+                  }
+                }
+              } catch {}
+            }
             const cost = sale.product?.purchasePrice || 0;
             const couponAmount = order.payments?.[0]?.coupon_amount || 0;
             const newGrossProfit = sale.salePrice - cost - mlFee - shippingCost - couponAmount;
@@ -259,6 +306,61 @@ export class SyncMLData {
             console.log(`[Sync] Venda ${sale.mlOrderId}: frete R$${shippingCost}, comissão R$${mlFee}, lucro R$${newGrossProfit.toFixed(2)}`);
           } catch (err) {
             console.error(`[Sync] Erro ao atualizar frete da venda ${sale.mlOrderId}:`, err);
+          }
+        }
+      }
+
+      // Atualizar vendas existentes que estão com comissão zerada
+      const salesNeedingCommission = await prisma.sale.findMany({
+        where: { mlCommission: 0, status: 'PAID' },
+        include: { product: true },
+      });
+
+      if (salesNeedingCommission.length > 0) {
+        console.log(`[Sync] Atualizando comissão de ${salesNeedingCommission.length} vendas com ML fee zero...`);
+        for (const sale of salesNeedingCommission) {
+          try {
+            const orderResp = await fetch(
+              `${ML_API_URL}/orders/${sale.mlOrderId}`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            if (!orderResp.ok) continue;
+            const order = await orderResp.json();
+
+            let mlFee = order.order_items?.[0]?.sale_fee || 0;
+            if (mlFee === 0 && order.fee_details?.length) {
+              mlFee = order.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+            }
+            if (mlFee === 0 && order.payments?.length) {
+              for (const payment of order.payments) {
+                if (payment.fee_details?.length) {
+                  mlFee += payment.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+                }
+              }
+            }
+
+            if (mlFee <= 0) continue;
+
+            const cost = sale.product?.purchasePrice || 0;
+            const couponAmount = order.payments?.[0]?.coupon_amount || 0;
+            const newGrossProfit = sale.salePrice - cost - mlFee - sale.shippingPaid - couponAmount;
+            const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
+            const newRoi = cost > 0 ? (newGrossProfit / cost) * 100 : 0;
+
+            await prisma.sale.update({
+              where: { id: sale.id },
+              data: {
+                mlCommission: mlFee,
+                couponDiscount: couponAmount,
+                grossProfit: newGrossProfit,
+                netProfit: newGrossProfit,
+                margin: newMargin,
+                roi: newRoi,
+              },
+            });
+            console.log(`[Sync] Venda ${sale.mlOrderId}: comissão corrigida R$${mlFee}`);
+          } catch (err) {
+            console.error(`[Sync] Erro ao atualizar comissão da venda ${sale.mlOrderId}:`, err);
           }
         }
       }
