@@ -118,6 +118,7 @@ interface MLOrder {
     id: number;
     status: string;
     status_detail: string;
+    payment_type: string;
     transaction_amount: number;
     shipping_cost: number;
     coupon_amount?: number;
@@ -428,7 +429,8 @@ export class MercadoLivreService {
     const shippingReceived = order.payments?.[0]?.shipping_cost || 0;
     const mlSaleFee = order.order_items?.[0]?.sale_fee || 0;
     const listingType = order.order_items?.[0]?.listing_type_id || '';
-    const couponDiscount = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || 0;
+    const paymentType = order.payments?.[0]?.payment_type || '';
+    const couponDiscount = paymentType === 'credit_card' ? (order.payments?.[0]?.coupon_amount || 0) : 0;
 
     return {
       salePrice,

@@ -176,7 +176,6 @@ export class SyncMLData {
 
           // Se sale_fee veio 0, buscar comissão detalhada do pedido
           let mlTotalFee = metrics.mlCommission;
-          let detailCouponDiscount = 0;
           if (mlTotalFee === 0 && order.id) {
             try {
               const orderDetailResp = await fetch(
@@ -195,18 +194,13 @@ export class SyncMLData {
                     if (payment.fee_details?.length) {
                       mlTotalFee += payment.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
                     }
-                    if (payment.benefit_amount !== undefined && payment.benefit_amount !== null && payment.benefit_amount > 0) {
-                      if (detailCouponDiscount === 0) {
-                        detailCouponDiscount = payment.benefit_amount;
-                      }
-                    }
                   }
                 }
               }
             } catch {}
           }
 
-          const couponDiscount = metrics.couponDiscount || detailCouponDiscount;
+          const couponDiscount = metrics.couponDiscount;
           const totalProductCost = product.purchasePrice * orderQuantity;
           const grossProfit = metrics.salePrice - totalProductCost - mlTotalFee - shippingPaid - couponDiscount;
           const netProfit = grossProfit;
@@ -295,7 +289,8 @@ export class SyncMLData {
             const saleQuantity = order.order_items?.[0]?.quantity || sale.quantity || 1;
             const unitCost = sale.product?.purchasePrice || 0;
             const cost = unitCost * saleQuantity;
-            const couponAmount = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || sale.couponDiscount || 0;
+            const paymentType = order.payments?.[0]?.payment_type || '';
+            const couponAmount = paymentType === 'credit_card' ? (order.payments?.[0]?.coupon_amount || 0) : sale.couponDiscount || 0;
             const newGrossProfit = sale.salePrice - cost - mlFee - shippingCost - couponAmount;
             const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
             const newRoi = cost > 0 ? (newGrossProfit / cost) * 100 : 0;
@@ -355,7 +350,8 @@ export class SyncMLData {
             const saleQuantity = order.order_items?.[0]?.quantity || sale.quantity || 1;
             const unitCost = sale.product?.purchasePrice || 0;
             const cost = unitCost * saleQuantity;
-            const couponAmount = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || sale.couponDiscount || 0;
+            const paymentType = order.payments?.[0]?.payment_type || '';
+            const couponAmount = paymentType === 'credit_card' ? (order.payments?.[0]?.coupon_amount || 0) : sale.couponDiscount || 0;
             const newGrossProfit = sale.salePrice - cost - mlFee - sale.shippingPaid - couponAmount;
             const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
             const newRoi = cost > 0 ? (newGrossProfit / cost) * 100 : 0;
@@ -402,7 +398,8 @@ export class SyncMLData {
 
             const unitCost = sale.product?.purchasePrice || 0;
             const cost = unitCost * saleQuantity;
-            const couponAmount = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || sale.couponDiscount || 0;
+            const paymentType = order.payments?.[0]?.payment_type || '';
+            const couponAmount = paymentType === 'credit_card' ? (order.payments?.[0]?.coupon_amount || 0) : sale.couponDiscount || 0;
             const mlFee = order.order_items?.[0]?.sale_fee || sale.mlCommission;
             const newGrossProfit = sale.salePrice - cost - mlFee - sale.shippingPaid - couponAmount;
             const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
@@ -443,7 +440,8 @@ export class SyncMLData {
             if (!orderResp.ok) continue;
             const order = await orderResp.json();
 
-            const couponFromPayment = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || 0;
+            const paymentType = order.payments?.[0]?.payment_type || '';
+            const couponFromPayment = paymentType === 'credit_card' ? (order.payments?.[0]?.coupon_amount || 0) : 0;
             if (couponFromPayment <= 0) continue;
 
             const saleQuantity = order.order_items?.[0]?.quantity || sale.quantity || 1;
