@@ -121,6 +121,12 @@ interface MLOrder {
     transaction_amount: number;
     shipping_cost: number;
     coupon_amount?: number;
+    benefit_amount?: number;
+    fee_details?: Array<{
+      id: string;
+      description: string;
+      amount: number;
+    }>;
   }>;
   shipping: {
     id: number;
@@ -422,7 +428,7 @@ export class MercadoLivreService {
     const shippingReceived = order.payments?.[0]?.shipping_cost || 0;
     const mlSaleFee = order.order_items?.[0]?.sale_fee || 0;
     const listingType = order.order_items?.[0]?.listing_type_id || '';
-    const couponDiscount = order.payments?.[0]?.coupon_amount || 0;
+    const couponDiscount = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || 0;
 
     return {
       salePrice,
