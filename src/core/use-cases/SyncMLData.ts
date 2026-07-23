@@ -426,6 +426,53 @@ export class SyncMLData {
         }
       }
 
+      // Corrigir vendas que não possuem cupom registrado (couponDiscount=0)
+      const salesNeedingCoupon = await prisma.sale.findMany({
+        where: { couponDiscount: 0, status: 'PAID' },
+        include: { product: true },
+      });
+
+      if (salesNeedingCoupon.length > 0) {
+        console.log(`[Sync] Verificando cupom de ${salesNeedingCoupon.length} vendas...`);
+        for (const sale of salesNeedingCoupon) {
+          try {
+            const orderResp = await fetch(
+              `${ML_API_URL}/orders/${sale.mlOrderId}`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            if (!orderResp.ok) continue;
+            const order = await orderResp.json();
+
+            const couponFromPayment = order.payments?.[0]?.coupon_amount || order.payments?.[0]?.benefit_amount || 0;
+            if (couponFromPayment <= 0) continue;
+
+            const saleQuantity = order.order_items?.[0]?.quantity || sale.quantity || 1;
+            const unitCost = sale.product?.purchasePrice || 0;
+            const cost = unitCost * saleQuantity;
+            const mlFee = order.order_items?.[0]?.sale_fee || sale.mlCommission;
+            const newGrossProfit = sale.salePrice - cost - mlFee - sale.shippingPaid - couponFromPayment;
+            const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
+            const newRoi = cost > 0 ? (newGrossProfit / cost) * 100 : 0;
+
+            await prisma.sale.update({
+              where: { id: sale.id },
+              data: {
+                couponDiscount: couponFromPayment,
+                quantity: saleQuantity,
+                productCost: cost,
+                grossProfit: newGrossProfit,
+                netProfit: newGrossProfit,
+                margin: newMargin,
+                roi: newRoi,
+              },
+            });
+            console.log(`[Sync] Venda ${sale.mlOrderId}: cupom corrigido R$${couponFromPayment}`);
+          } catch (err) {
+            console.error(`[Sync] Erro ao corrigir cupom da venda ${sale.mlOrderId}:`, err);
+          }
+        }
+      }
+
       await this.mlIntegrationRepository.updateSyncTime(integration.id);
 
       // Sync complaints (claims)
