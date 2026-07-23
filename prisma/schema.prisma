@@ -118,7 +118,8 @@ model Sale {
   fixedFee         Float       @default(0.0) // Tarifa fixa do ML por item (ex: R$ 6.00)
   variableFee      Float       @default(0.0) // Outras taxas variáveis (ex: publicidade)
   couponDiscount   Float       @default(0.0) // Desconto de cupom aplicado (absorvido pelo vendedor)
-  productCost      Float       @default(0.0) // Custo de aquisição do produto no momento da venda
+  quantity         Int         @default(1) // Quantidade de unidades vendidas no pedido
+  productCost      Float       @default(0.0) // Custo total de aquisição (unitário * quantidade) no momento da venda
   tax              Float       @default(0.0) // Imposto pago por essa venda
   grossProfit      Float       // Lucro Bruto = Preço - Custo - Taxas ML - Frete Pago
   netProfit        Float       // Lucro Líquido = Lucro Bruto - Impostos - Custos Embalagem/Fixo rateado

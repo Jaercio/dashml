@@ -158,6 +158,8 @@ export class SyncMLData {
           const orderItem = order.order_items?.[0]?.item;
           if (!orderItem) continue;
 
+          const orderQuantity = order.order_items?.[0]?.quantity || 1;
+
           const product = await prisma.product.findFirst({
             where: { mlCode: orderItem.id },
           });
@@ -202,10 +204,11 @@ export class SyncMLData {
           }
 
           const couponDiscount = metrics.couponDiscount;
-          const grossProfit = metrics.salePrice - product.purchasePrice - mlTotalFee - shippingPaid - couponDiscount;
+          const totalProductCost = product.purchasePrice * orderQuantity;
+          const grossProfit = metrics.salePrice - totalProductCost - mlTotalFee - shippingPaid - couponDiscount;
           const netProfit = grossProfit;
           const margin = metrics.salePrice > 0 ? (netProfit / metrics.salePrice) * 100 : 0;
-          const roi = product.purchasePrice > 0 ? (netProfit / product.purchasePrice) * 100 : 0;
+          const roi = totalProductCost > 0 ? (netProfit / totalProductCost) * 100 : 0;
 
           await prisma.sale.create({
             data: {
@@ -218,7 +221,8 @@ export class SyncMLData {
               mlCommission: mlTotalFee,
               fixedFee: 0,
               couponDiscount,
-              productCost: product.purchasePrice,
+              quantity: orderQuantity,
+              productCost: totalProductCost,
               grossProfit,
               netProfit,
               margin,
@@ -285,7 +289,9 @@ export class SyncMLData {
                 }
               } catch {}
             }
-            const cost = sale.product?.purchasePrice || 0;
+            const saleQuantity = order.order_items?.[0]?.quantity || sale.quantity || 1;
+            const unitCost = sale.product?.purchasePrice || 0;
+            const cost = unitCost * saleQuantity;
             const couponAmount = order.payments?.[0]?.coupon_amount || 0;
             const newGrossProfit = sale.salePrice - cost - mlFee - shippingCost - couponAmount;
             const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
@@ -297,6 +303,8 @@ export class SyncMLData {
                 shippingPaid: shippingCost,
                 mlCommission: mlFee,
                 couponDiscount: couponAmount,
+                quantity: saleQuantity,
+                productCost: cost,
                 grossProfit: newGrossProfit,
                 netProfit: newGrossProfit,
                 margin: newMargin,
@@ -341,7 +349,9 @@ export class SyncMLData {
 
             if (mlFee <= 0) continue;
 
-            const cost = sale.product?.purchasePrice || 0;
+            const saleQuantity = order.order_items?.[0]?.quantity || sale.quantity || 1;
+            const unitCost = sale.product?.purchasePrice || 0;
+            const cost = unitCost * saleQuantity;
             const couponAmount = order.payments?.[0]?.coupon_amount || 0;
             const newGrossProfit = sale.salePrice - cost - mlFee - sale.shippingPaid - couponAmount;
             const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
@@ -352,6 +362,8 @@ export class SyncMLData {
               data: {
                 mlCommission: mlFee,
                 couponDiscount: couponAmount,
+                quantity: saleQuantity,
+                productCost: cost,
                 grossProfit: newGrossProfit,
                 netProfit: newGrossProfit,
                 margin: newMargin,

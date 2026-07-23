@@ -89,7 +89,9 @@ export class SaleRepository {
     });
 
     return dbSales.map((s: any) => {
-      const currentCost = s.product?.purchasePrice || 0;
+      const unitCost = s.product?.purchasePrice || 0;
+      const quantity = s.quantity || 1;
+      const currentCost = unitCost * quantity;
       const mlFees = s.mlCommission + s.fixedFee + s.variableFee;
       const couponDiscount = s.couponDiscount || 0;
       const grossProfit = s.salePrice - currentCost - mlFees - s.shippingPaid - couponDiscount;
@@ -137,6 +139,7 @@ export class SaleRepository {
           tax: true,
           status: true,
           createdAt: true,
+          quantity: true,
           product: { select: { purchasePrice: true } },
         },
       }),
@@ -144,7 +147,7 @@ export class SaleRepository {
         SELECT
           to_char(s."createdAt", 'YYYY-MM-DD') as date,
           SUM(s."salePrice") as revenue,
-          SUM(s."salePrice" - (p."purchasePrice" * 1.0) - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax") as profit,
+          SUM(s."salePrice" - (p."purchasePrice" * s."quantity") - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax") as profit,
           COUNT(*) as count
         FROM "Sale" s
         JOIN "Product" p ON s."productId" = p.id
@@ -155,10 +158,10 @@ export class SaleRepository {
       prisma.$queryRawUnsafe(`
         SELECT
           p.name,
-          SUM(s."salePrice" - (p."purchasePrice" * 1.0) - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax") as "totalProfit",
+          SUM(s."salePrice" - (p."purchasePrice" * s."quantity") - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax") as "totalProfit",
           COUNT(*) as "totalSales",
           CASE WHEN SUM(s."salePrice") > 0
-            THEN (SUM(s."salePrice" - (p."purchasePrice" * 1.0) - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax")) * 100.0 / SUM(s."salePrice")
+            THEN (SUM(s."salePrice" - (p."purchasePrice" * s."quantity") - s."mlCommission" - s."fixedFee" - s."variableFee" - s."couponDiscount" - s."shippingPaid" - s."tax")) * 100.0 / SUM(s."salePrice")
             ELSE 0 END as "avgMargin"
         FROM "Sale" s
         JOIN "Product" p ON s."productId" = p.id
@@ -177,7 +180,7 @@ export class SaleRepository {
 
     const totalSales = sales.length;
     const totalRevenue = sales.reduce((sum: number, s: any) => sum + s.salePrice, 0);
-    const totalCosts = sales.reduce((sum: number, s: any) => sum + (s.product?.purchasePrice || 0), 0);
+    const totalCosts = sales.reduce((sum: number, s: any) => sum + ((s.product?.purchasePrice || 0) * (s.quantity || 1)), 0);
     const totalShippingPaid = sales.reduce((sum: number, s: any) => sum + (s.shippingPaid || 0), 0);
     const totalCouponDiscount = sales.reduce((sum: number, s: any) => sum + (s.couponDiscount || 0), 0);
     const totalContributionMargin = totalRevenue - totalCosts - totalShippingPaid - totalCouponDiscount;

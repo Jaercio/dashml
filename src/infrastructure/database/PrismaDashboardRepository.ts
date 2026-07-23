@@ -19,7 +19,7 @@ export class PrismaDashboardRepository implements IDashboardRepository {
     const cancelledSales = allSales.filter((s: any) => s.status === 'CANCELLED');
 
     const totalRevenue = paidSales.reduce((sum: number, s: any) => sum + s.salePrice, 0);
-    const totalCosts = paidSales.reduce((sum: number, s: any) => sum + (s.product?.purchasePrice || 0), 0);
+    const totalCosts = paidSales.reduce((sum: number, s: any) => sum + ((s.product?.purchasePrice || 0) * (s.quantity || 1)), 0);
     const totalShippingPaid = paidSales.reduce((sum: number, s: any) => sum + (s.shippingPaid || 0), 0);
     const totalCouponDiscount = paidSales.reduce((sum: number, s: any) => sum + (s.couponDiscount || 0), 0);
     const totalContributionMargin = totalRevenue - totalCosts - totalShippingPaid - totalCouponDiscount;
@@ -61,7 +61,9 @@ export class PrismaDashboardRepository implements IDashboardRepository {
       }
       productStatsMap[pid].totalSold += 1;
       productStatsMap[pid].revenue += s.salePrice;
-      const cost = s.product?.purchasePrice || 0;
+      const unitCost = s.product?.purchasePrice || 0;
+      const quantity = s.quantity || 1;
+      const cost = unitCost * quantity;
       productStatsMap[pid].totalCost += cost;
       productStatsMap[pid].totalProfit += s.salePrice - cost;
     });
