@@ -377,6 +377,52 @@ export class SyncMLData {
         }
       }
 
+      // Corrigir vendas antigas sem quantity (quantity=1 é o default antes da correção)
+      const salesNeedingQuantity = await prisma.sale.findMany({
+        where: { quantity: 1, status: 'PAID' },
+        include: { product: true },
+      });
+
+      if (salesNeedingQuantity.length > 0) {
+        console.log(`[Sync] Verificando quantity de ${salesNeedingQuantity.length} vendas antigas...`);
+        for (const sale of salesNeedingQuantity) {
+          try {
+            const orderResp = await fetch(
+              `${ML_API_URL}/orders/${sale.mlOrderId}`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            if (!orderResp.ok) continue;
+            const order = await orderResp.json();
+
+            const saleQuantity = order.order_items?.[0]?.quantity || 1;
+            if (saleQuantity <= 1) continue;
+
+            const unitCost = sale.product?.purchasePrice || 0;
+            const cost = unitCost * saleQuantity;
+            const couponAmount = order.payments?.[0]?.coupon_amount || 0;
+            const mlFee = order.order_items?.[0]?.sale_fee || sale.mlCommission;
+            const newGrossProfit = sale.salePrice - cost - mlFee - sale.shippingPaid - couponAmount;
+            const newMargin = sale.salePrice > 0 ? (newGrossProfit / sale.salePrice) * 100 : 0;
+            const newRoi = cost > 0 ? (newGrossProfit / cost) * 100 : 0;
+
+            await prisma.sale.update({
+              where: { id: sale.id },
+              data: {
+                quantity: saleQuantity,
+                productCost: cost,
+                grossProfit: newGrossProfit,
+                netProfit: newGrossProfit,
+                margin: newMargin,
+                roi: newRoi,
+              },
+            });
+            console.log(`[Sync] Venda ${sale.mlOrderId}: quantity corrigida para ${saleQuantity}, custo R$${cost.toFixed(2)}`);
+          } catch (err) {
+            console.error(`[Sync] Erro ao corrigir quantity da venda ${sale.mlOrderId}:`, err);
+          }
+        }
+      }
+
       await this.mlIntegrationRepository.updateSyncTime(integration.id);
 
       // Sync complaints (claims)
